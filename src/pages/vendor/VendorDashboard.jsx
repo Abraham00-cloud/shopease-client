@@ -12,7 +12,7 @@ const VendorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // New Product Form State
+  // New Product Form State (Includes Weight)
   const [showAddModal, setShowAddModal] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
@@ -21,6 +21,7 @@ const VendorDashboard = () => {
     description: '',
     price: '',
     stockQuantity: '',
+    weight: '1', // Defaulted to 1kg
     categoryId: '',
   });
 
@@ -58,11 +59,13 @@ const VendorDashboard = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      // 1. Create basic product entity
+      // 1. Create basic product entity with explicit weight
       const createdProduct = await productService.createProduct({
-        ...newProduct,
+        name: newProduct.name,
+        description: newProduct.description,
         price: parseFloat(newProduct.price),
         quantity: parseInt(newProduct.stockQuantity),
+        weight: parseInt(newProduct.weight) || 1, // Sent as Long integer to backend
         categoryId: parseInt(newProduct.categoryId),
       });
 
@@ -75,7 +78,7 @@ const VendorDashboard = () => {
       setShowAddModal(false);
       setImageFile(null);
       setImagePreview('');
-      setNewProduct({ name: '', description: '', price: '', stockQuantity: '', categoryId: '' });
+      setNewProduct({ name: '', description: '', price: '', stockQuantity: '', weight: '1', categoryId: '' });
       fetchVendorData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create product.');
@@ -182,7 +185,7 @@ const VendorDashboard = () => {
                     <div className="mt-3 flex items-center justify-between">
                       <span className="font-black text-slate-900">₦{Number(p.price || 0).toLocaleString()}</span>
                       <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">
-                        Stock: {p.stockQuantity}
+                        Stock: {p.stockQuantity ?? p.quantity}
                       </span>
                     </div>
                   </div>
@@ -262,7 +265,8 @@ const VendorDashboard = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Price, Stock Quantity, and Weight Grid */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Price (₦)</label>
                   <input
@@ -274,12 +278,23 @@ const VendorDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Stock Quantity</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Stock</label>
                   <input
                     type="number"
                     required
                     value={newProduct.stockQuantity}
                     onChange={(e) => setNewProduct({ ...newProduct, stockQuantity: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Weight (kg)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newProduct.weight}
+                    onChange={(e) => setNewProduct({ ...newProduct, weight: e.target.value })}
                     className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
