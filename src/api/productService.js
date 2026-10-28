@@ -33,10 +33,22 @@ export const productService = {
     return response.data;
   },
 
-  // POST /api/v1/products/{productId}/images
-  addImage: async (productId, imageUrl) => {
-    const response = await axiosInstance.post(`/products/${productId}/images`, imageUrl);
+  // POST /api/v1/products/{productId}/images (Multipart File Upload to Cloudinary)
+  uploadImage: async (productId, fileObject) => {
+    const formData = new FormData();
+    formData.append('file', fileObject); // Key matches @RequestParam("file") in Spring Boot
+
+    const response = await axiosInstance.post(`/products/${productId}/images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
+  },
+
+  // Backwards-compatible alias for uploadImage
+  addImage: async (productId, fileObject) => {
+    return productService.uploadImage(productId, fileObject);
   },
 
   // GET /api/v1/products/{productId}/images

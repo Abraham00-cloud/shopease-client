@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Store, Package, Plus, Trash2, Tag, DollarSign, Layers } from 'lucide-react';
+import { Store, Package, Plus, Trash2, Tag, Layers, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import { productService } from '../../api/productService';
 import { categoryService } from '../../api/categoryService';
 import { orderService } from '../../api/orderService';
@@ -10,16 +10,18 @@ const VendorDashboard = () => {
   const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   // New Product Form State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
     price: '',
     stockQuantity: '',
     categoryId: '',
-    imageUrl: '',
   });
 
   useEffect(() => {
@@ -44,20 +46,41 @@ const VendorDashboard = () => {
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleCreateProduct = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
-      await productService.createProduct({
+      // 1. Create basic product entity
+      const createdProduct = await productService.createProduct({
         ...newProduct,
         price: parseFloat(newProduct.price),
         stockQuantity: parseInt(newProduct.stockQuantity),
         categoryId: parseInt(newProduct.categoryId),
       });
+
+      // 2. If a local file was selected, upload it directly to Cloudinary
+      if (imageFile && createdProduct?.id) {
+        await productService.uploadImage(createdProduct.id, imageFile);
+      }
+
+      // Reset modal state
       setShowAddModal(false);
-      setNewProduct({ name: '', description: '', price: '', stockQuantity: '', categoryId: '', imageUrl: '' });
+      setImageFile(null);
+      setImagePreview('');
+      setNewProduct({ name: '', description: '', price: '', stockQuantity: '', categoryId: '' });
       fetchVendorData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to create product.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -141,39 +164,42 @@ const VendorDashboard = () => {
       ) : activeTab === 'products' ? (
         /* Products Grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((p) => (
-            <div key={p.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="h-40 bg-slate-100 relative flex items-center justify-center">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Tag className="h-10 w-10 text-slate-300" />
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-slate-900 line-clamp-1">{p.name}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 mt-1">{p.description}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="font-black text-slate-900">₦{Number(p.price || 0).toLocaleString()}</span>
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">
-                      Stock: {p.stockQuantity}
-                    </span>
+          {products.map((p) => {
+            const displayImage = p.images?.[0]?.url || p.imageUrl;
+            return (
+              <div key={p.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="h-40 bg-slate-100 relative flex items-center justify-center">
+                    {displayImage ? (
+                      <img src={displayImage} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Tag className="h-10 w-10 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-bold text-slate-900 line-clamp-1">{p.name}</h3>
+                    <p className="text-xs text-slate-500 line-clamp-2 mt-1">{p.description}</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="font-black text-slate-900">₦{Number(p.price || 0).toLocaleString()}</span>
+                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">
+                        Stock: {p.stockQuantity}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="p-4 pt-0 border-t border-slate-100 flex justify-end">
-                <button
-                  onClick={() => handleDeleteProduct(p.id)}
-                  className="text-slate-400 hover:text-red-600 p-2 transition-colors"
-                  title="Delete Product"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="p-4 pt-0 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => handleDeleteProduct(p.id)}
+                    className="text-slate-400 hover:text-red-600 p-2 transition-colors"
+                    title="Delete Product"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         /* Orders List */
@@ -212,7 +238,7 @@ const VendorDashboard = () => {
       {/* Add Product Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-slate-900 mb-4">Add New Product</h2>
             <form onSubmit={handleCreateProduct} className="space-y-4">
               <div>
@@ -276,20 +302,35 @@ const VendorDashboard = () => {
                 </select>
               </div>
 
+              {/* Local File Picker Dropzone */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={newProduct.imageUrl}
-                  onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <label className="block text-xs font-medium text-slate-700 mb-1">Product Image File</label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-amber-500 transition-colors relative bg-slate-50 cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  {imagePreview ? (
+                    <div className="flex flex-col items-center">
+                      <img src={imagePreview} alt="Preview" className="h-28 w-28 object-cover rounded-xl border" />
+                      <span className="text-[11px] text-amber-600 font-bold mt-2">Click to replace photo</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <Upload className="h-6 w-6 text-slate-400" />
+                      <span className="text-xs font-semibold text-slate-600">Select image from computer</span>
+                      <span className="text-[10px] text-slate-400">PNG, JPG, WEBP up to 10MB</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
+                  disabled={submitting}
                   onClick={() => setShowAddModal(false)}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition-colors"
                 >
@@ -297,9 +338,17 @@ const VendorDashboard = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors"
+                  disabled={submitting}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
                 >
-                  Create Product
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Create Product</span>
+                  )}
                 </button>
               </div>
             </form>

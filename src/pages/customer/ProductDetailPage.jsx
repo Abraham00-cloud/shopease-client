@@ -11,6 +11,7 @@ const ProductDetailPage = () => {
   const { user } = useAuth();
 
   const [product, setProduct] = useState(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [addedMessage, setAddedMessage] = useState('');
@@ -24,6 +25,10 @@ const ProductDetailPage = () => {
     try {
       const data = await productService.getProductById(id);
       setProduct(data);
+      
+      // Determine initial display image URL
+      const primaryUrl = data?.images?.[0]?.url || data?.imageUrl || '';
+      setSelectedImageUrl(primaryUrl);
     } catch (err) {
       console.error('Failed to load product details', err);
     } finally {
@@ -73,6 +78,11 @@ const ProductDetailPage = () => {
     );
   }
 
+  // Combine single imageUrl fallback with images list
+  const allImages = product.images && product.images.length > 0
+    ? product.images.map((img) => img.url)
+    : product.imageUrl ? [product.imageUrl] : [];
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Toast Notification */}
@@ -92,16 +102,35 @@ const ProductDetailPage = () => {
       </button>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8 p-6 md:p-8">
-        {/* Product Image */}
-        <div className="h-80 md:h-96 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center relative">
-          {product.imageUrl || product.images?.[0]?.url ? (
-            <img
-              src={product.imageUrl || product.images[0].url}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Tag className="h-16 w-16 text-slate-300" />
+        {/* Product Image Viewer & Gallery */}
+        <div className="space-y-4">
+          <div className="h-80 md:h-96 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center relative border border-slate-100">
+            {selectedImageUrl ? (
+              <img
+                src={selectedImageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Tag className="h-16 w-16 text-slate-300" />
+            )}
+          </div>
+
+          {/* Thumbnail Gallery (if product has multiple images) */}
+          {allImages.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {allImages.map((imgUrl, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedImageUrl(imgUrl)}
+                  className={`h-16 w-16 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                    selectedImageUrl === imgUrl ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-slate-200 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <img src={imgUrl} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
