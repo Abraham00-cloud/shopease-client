@@ -62,7 +62,7 @@ const VendorDashboard = () => {
       const createdProduct = await productService.createProduct({
         ...newProduct,
         price: parseFloat(newProduct.price),
-        stockQuantity: parseInt(newProduct.stockQuantity),
+        quantity: parseInt(newProduct.stockQuantity),
         categoryId: parseInt(newProduct.categoryId),
       });
 
